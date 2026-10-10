@@ -21,6 +21,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # user_id -> {channel_id, opened_at, member, messages, mods}
 open_tickets = {}
+maintenance = False
 
 
 def now() -> datetime:
@@ -39,6 +40,13 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     if message.author.bot:
+        return
+
+    if maintenance:
+        if isinstance(message.channel, discord.DMChannel):
+            await message.author.send("🔧 Le support est actuellement en maintenance. Reviens plus tard !")
+        else:
+            await bot.process_commands(message)  # laisser passer !maintenance uniquement
         return
 
     if isinstance(message.channel, discord.DMChannel):
@@ -214,6 +222,25 @@ CLOSING_FRAMES = [
     "💥 Fermeture en cours... 🔐",
     "🗑️ Suppression du salon... 🚨",
 ]
+
+
+@bot.command(name="maintenance")
+@commands.has_permissions(administrator=True)
+async def toggle_maintenance(ctx):
+    global maintenance
+    maintenance = not maintenance
+    if maintenance:
+        await bot.change_presence(
+            status=discord.Status.do_not_disturb,
+            activity=discord.Game("🔧 Maintenance en cours")
+        )
+        await ctx.send("🔧 Maintenance **activée** — le bot ne répond plus aux DMs.")
+    else:
+        await bot.change_presence(
+            status=discord.Status.online,
+            activity=None
+        )
+        await ctx.send("✅ Maintenance **désactivée** — le bot est de retour.")
 
 
 @bot.command(name="fermer")
