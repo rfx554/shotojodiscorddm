@@ -213,29 +213,58 @@ async def on_message(message):
             await relay_to_user(message)
 
 
+def ts(dt: datetime) -> str:
+    """Timestamp Discord cliquable format long."""
+    return f"<t:{int(dt.timestamp())}:F>"
+
+
+def ts_relative(dt: datetime) -> str:
+    """Timestamp Discord relatif (il y a X minutes)."""
+    return f"<t:{int(dt.timestamp())}:R>"
+
+
+def duration_str(opened: datetime, closed: datetime) -> str:
+    delta = closed - opened
+    total = int(delta.total_seconds())
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}h {m}min {s}s"
+    elif m:
+        return f"{m}min {s}s"
+    else:
+        return f"{s}s"
+
+
 def build_transcript(data: dict, closed_at: datetime, closed_by: str) -> str:
-    lines = []
-    lines.append("=" * 60)
-    lines.append("              TRANSCRIPT DE TICKET")
-    lines.append("=" * 60)
-    lines.append(f"  Membre       : {data['member']} (ID: {data['member_id']})")
-    lines.append(f"  Ouvert le    : {fmt(data['opened_at'])}")
-    lines.append(f"  Fermé le     : {fmt(closed_at)}")
-    lines.append(f"  Fermé par    : {closed_by}")
+    dur = duration_str(data["opened_at"], closed_at)
     mods = ", ".join(data["mods"]) if data["mods"] else "Aucun"
-    lines.append(f"  Staff actif  : {mods}")
-    lines.append(f"  Messages     : {len(data['messages'])}")
-    lines.append("=" * 60)
+    lines = []
+    lines.append("╔══════════════════════════════════════════════════════════╗")
+    lines.append("║               📋  TRANSCRIPT DE TICKET                  ║")
+    lines.append("╚══════════════════════════════════════════════════════════╝")
     lines.append("")
-    lines.append("─── MESSAGES ───────────────────────────────────────────")
+    lines.append(f"  👤  Membre       : {data['member']}  (ID : {data['member_id']})")
+    lines.append(f"  🕐  Ouvert le    : {fmt(data['opened_at'])}")
+    lines.append(f"  🔒  Fermé le     : {fmt(closed_at)}")
+    lines.append(f"  ⏱️   Durée        : {dur}")
+    lines.append(f"  🛡️   Fermé par    : {closed_by}")
+    lines.append(f"  👥  Staff actif  : {mods}")
+    lines.append(f"  💬  Messages     : {len(data['messages'])}")
+    lines.append("")
+    lines.append("┌──────────────────────────────────────────────────────────┐")
+    lines.append("│                        MESSAGES                          │")
+    lines.append("└──────────────────────────────────────────────────────────┘")
     lines.append("")
     for msg in data["messages"]:
-        lines.append(f"[{fmt(msg['time'])}] [{msg['role']}] {msg['author']}")
-        lines.append(f"  → {msg['content']}")
+        icon = "👤" if msg["role"] == "Membre" else "🛡️"
+        lines.append(f"{icon}  [{msg['role']}] {msg['author']}")
+        lines.append(f"    🕐 {fmt(msg['time'])}")
+        lines.append(f"    💬 {msg['content']}")
         lines.append("")
-    lines.append("=" * 60)
-    lines.append("               FIN DU TRANSCRIPT")
-    lines.append("=" * 60)
+    lines.append("╔══════════════════════════════════════════════════════════╗")
+    lines.append("║                    FIN DU TRANSCRIPT                     ║")
+    lines.append("╚══════════════════════════════════════════════════════════╝")
     return "\n".join(lines)
 
 
@@ -286,22 +315,61 @@ async def fermer(interaction: discord.Interaction):
     logs_channel = interaction.guild.get_channel(LOGS_CHANNEL_ID)
     if logs_channel:
         transcript = build_transcript(data, closed_at, str(interaction.user))
-        file = discord.File(
-            fp=io.BytesIO(transcript.encode("utf-8")),
-            filename=f"transcript-{data['member'].replace('#', '')}-{closed_at.strftime('%Y%m%d-%H%M%S')}.txt",
+        filename = f"transcript-{data['member'].replace('#', '').replace(' ', '_')}-{closed_at.strftime('%Y%m%d-%H%M%S')}.txt"
+        file = discord.File(fp=io.BytesIO(transcript.encode("utf-8")), filename=filename)
+
+        dur = duration_str(data["opened_at"], closed_at)
+        mods = "\n".join(f"• {m}" for m in data["mods"]) if data["mods"] else "*Aucun*"
+        nb_msg_membre = sum(1 for m in data["messages"] if m["role"] == "Membre")
+        nb_msg_staff  = sum(1 for m in data["messages"] if m["role"] == "Staff")
+
+        embed = discord.Embed(
+            title="🔒 Ticket fermé",
+            color=0xED4245,
+            timestamp=closed_at,
         )
-        embed = discord.Embed(title="📋 Ticket fermé", color=0xFF4444)
-        embed.add_field(name="👤 Membre", value=f"{data['member']}\n`{data['member_id']}`", inline=True)
-        embed.add_field(name="🛡️ Fermé par", value=str(interaction.user), inline=True)
         embed.add_field(
-            name="🕐 Durée",
-            value=f"Ouvert : {fmt(data['opened_at'])}\nFermé : {fmt(closed_at)}",
-            inline=False,
+            name="👤 Membre",
+            value=f"<@{data['member_id']}>\n`{data['member']}` • `{data['member_id']}`",
+            inline=True,
         )
-        mods = ", ".join(data["mods"]) if data["mods"] else "Aucun"
-        embed.add_field(name="👥 Staff ayant répondu", value=mods, inline=False)
-        embed.add_field(name="💬 Messages", value=str(len(data["messages"])), inline=True)
-        embed.set_footer(text="Transcript joint en fichier ↓")
+        embed.add_field(
+            name="🛡️ Fermé par",
+            value=f"{interaction.user.mention}\n`{interaction.user}`",
+            inline=True,
+        )
+        embed.add_field(name="\u200b", value="\u200b", inline=True)  # spacer
+
+        embed.add_field(
+            name="🕐 Ouvert",
+            value=f"{ts(data['opened_at'])}\n{ts_relative(data['opened_at'])}",
+            inline=True,
+        )
+        embed.add_field(
+            name="🔒 Fermé",
+            value=f"{ts(closed_at)}\n{ts_relative(closed_at)}",
+            inline=True,
+        )
+        embed.add_field(
+            name="⏱️ Durée",
+            value=f"`{dur}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="💬 Messages",
+            value=f"👤 Membre : **{nb_msg_membre}**\n🛡️ Staff : **{nb_msg_staff}**\n📊 Total : **{len(data['messages'])}**",
+            inline=True,
+        )
+        embed.add_field(
+            name="👥 Staff ayant répondu",
+            value=mods,
+            inline=True,
+        )
+        embed.add_field(name="\u200b", value="\u200b", inline=True)  # spacer
+
+        embed.set_thumbnail(url=f"https://cdn.discordapp.com/avatars/{data['member_id']}/avatar.png")
+        embed.set_footer(text=f"ID ticket : {data['channel_id']} • Transcript en pièce jointe")
+
         await logs_channel.send(embed=embed, file=file)
 
     await asyncio.sleep(1)
