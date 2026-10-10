@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = int(os.getenv("GUILD_ID"))
-CATEGORY_ID = int(os.getenv("TICKETS_CATEGORY_ID", "0"))
+TOKEN = os.getenv("MTU1ODMyNzU4ODcxMDEyMTU1NA.GBu4SO.X8h2lQjHsozbVnANUPtCL6xvU8pNn3iTpMADVs")
+GUILD_ID = int(os.getenv("1556027569600471054"))
+CATEGORY_ID = int(os.getenv("1556136510292623380", "0"))
 
 intents = discord.Intents.default()
 intents.message_content = True
