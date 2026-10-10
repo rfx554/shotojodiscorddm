@@ -1,6 +1,7 @@
 import discord
-from discord.ext import commands
+from discord import app_commands
 import asyncio
+import io
 import os
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -17,9 +18,9 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = discord.Client(intents=intents)
+tree = app_commands.CommandTree(bot)
 
-# user_id -> {channel_id, opened_at, member, messages, mods}
 open_tickets = {}
 maintenance = False
 
@@ -34,26 +35,26 @@ def fmt(dt: datetime) -> str:
 
 @bot.event
 async def on_ready():
+    await tree.sync()
     print(f"✅ Connecté en tant que {bot.user} (ID: {bot.user.id})")
+    print("✅ Slash commands synchronisées")
 
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
-
-    if maintenance:
-        if isinstance(message.channel, discord.DMChannel):
-            await message.author.send("🔧 Le support est actuellement en maintenance. Reviens plus tard !")
-        else:
-            await bot.process_commands(message)  # laisser passer !maintenance uniquement
+    if not isinstance(message.channel, discord.DMChannel):
         return
 
-    if isinstance(message.channel, discord.DMChannel):
-        await handle_dm(message)
-    else:
-        await handle_ticket_reply(message)
-        await bot.process_commands(message)
+    if maintenance:
+        await message.author.send(
+            "🔧 Le support est actuellement en **maintenance**.\n"
+            "Reviens un peu plus tard, on sera de retour rapidement ! 🙏"
+        )
+        return
+
+    await handle_dm(message)
 
 
 async def handle_dm(message):
@@ -63,7 +64,7 @@ async def handle_dm(message):
 
     user_id = message.author.id
 
-    # Ticket déjà ouvert → relay + log message
+    # Ticket déjà ouvert → relay
     if user_id in open_tickets:
         channel = guild.get_channel(open_tickets[user_id]["channel_id"])
         if channel:
@@ -78,7 +79,6 @@ async def handle_dm(message):
             if message.attachments:
                 embed.set_image(url=message.attachments[0].url)
             await channel.send(embed=embed)
-
             open_tickets[user_id]["messages"].append({
                 "time": now(),
                 "author": str(message.author),
@@ -134,7 +134,7 @@ async def handle_dm(message):
         name=f"{message.author} ({user_id})",
         icon_url=message.author.display_avatar.url,
     )
-    embed.set_footer(text="Répondez ici · !fermer pour clore le ticket")
+    embed.set_footer(text="Répondez ici · /fermer pour clore le ticket")
     if message.attachments:
         embed.set_image(url=message.attachments[0].url)
 
@@ -144,17 +144,24 @@ async def handle_dm(message):
     )
 
 
-async def handle_ticket_reply(message):
+@bot.event
+async def on_message_edit(before, after):
+    pass
+
+
+@bot.event
+async def on_message_without_command(message):
+    pass
+
+
+async def relay_to_user(message: discord.Message):
     user_id = next(
         (uid for uid, data in open_tickets.items() if data["channel_id"] == message.channel.id),
         None,
     )
     if user_id is None:
         return
-    if message.content.startswith("!"):
-        return
 
-    # Log le modo
     open_tickets[user_id]["mods"].add(str(message.author))
     open_tickets[user_id]["messages"].append({
         "time": now(),
@@ -182,7 +189,28 @@ async def handle_ticket_reply(message):
             embed.set_image(url=message.attachments[0].url)
         await user.send(embed=embed)
     except discord.Forbidden:
-        await message.channel.send("⚠️ Impossible d'envoyer le DM (DMs fermés).")
+        await message.channel.send("⚠️ Impossible d'envoyer le message, l'utilisateur a ses DMs fermés.")
+
+
+# Intercepter les messages dans les salons tickets
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    if isinstance(message.channel, discord.DMChannel):
+        if maintenance:
+            await message.author.send(
+                "🔧 Le support est actuellement en **maintenance**.\n"
+                "Reviens un peu plus tard, on sera de retour rapidement ! 🙏"
+            )
+            return
+        await handle_dm(message)
+    else:
+        # Vérifier si c'est un salon ticket
+        is_ticket = any(data["channel_id"] == message.channel.id for data in open_tickets.values())
+        if is_ticket:
+            await relay_to_user(message)
 
 
 def build_transcript(data: dict, closed_at: datetime, closed_by: str) -> str:
@@ -201,12 +229,10 @@ def build_transcript(data: dict, closed_at: datetime, closed_by: str) -> str:
     lines.append("")
     lines.append("─── MESSAGES ───────────────────────────────────────────")
     lines.append("")
-
     for msg in data["messages"]:
         lines.append(f"[{fmt(msg['time'])}] [{msg['role']}] {msg['author']}")
         lines.append(f"  → {msg['content']}")
         lines.append("")
-
     lines.append("=" * 60)
     lines.append("               FIN DU TRANSCRIPT")
     lines.append("=" * 60)
@@ -224,38 +250,26 @@ CLOSING_FRAMES = [
 ]
 
 
-@bot.command(name="maintenance")
-@commands.has_permissions(administrator=True)
-async def toggle_maintenance(ctx):
-    global maintenance
-    maintenance = not maintenance
-    if maintenance:
-        await bot.change_presence(
-            status=discord.Status.do_not_disturb,
-            activity=discord.Game("🔧 Maintenance en cours")
-        )
-        await ctx.send("🔧 Maintenance **activée** — le bot ne répond plus aux DMs.")
-    else:
-        await bot.change_presence(
-            status=discord.Status.online,
-            activity=None
-        )
-        await ctx.send("✅ Maintenance **désactivée** — le bot est de retour.")
-
-
-@bot.command(name="fermer")
-@commands.has_permissions(administrator=True)
-async def fermer(ctx):
+@tree.command(name="fermer", description="Ferme et supprime le ticket actuel")
+@app_commands.checks.has_permissions(administrator=True)
+async def fermer(interaction: discord.Interaction):
     user_id = next(
-        (uid for uid, data in open_tickets.items() if data["channel_id"] == ctx.channel.id),
+        (uid for uid, data in open_tickets.items() if data["channel_id"] == interaction.channel.id),
         None,
     )
     if user_id is None:
-        await ctx.send("❌ Ce channel n'est pas un ticket.")
+        await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
         return
 
     data = open_tickets.pop(user_id)
     closed_at = now()
+
+    await interaction.response.send_message(CLOSING_FRAMES[0])
+    msg = await interaction.original_response()
+
+    for frame in CLOSING_FRAMES[1:]:
+        await asyncio.sleep(1)
+        await msg.edit(content=frame)
 
     # Notifier le membre
     user = bot.get_user(user_id)
@@ -268,42 +282,53 @@ async def fermer(ctx):
         except discord.Forbidden:
             pass
 
-    # Animation fermeture
-    msg = await ctx.send(CLOSING_FRAMES[0])
-    for frame in CLOSING_FRAMES[1:]:
-        await asyncio.sleep(1)
-        await msg.edit(content=frame)
-
-    # Envoyer le transcript dans le salon de logs
-    logs_channel = ctx.guild.get_channel(LOGS_CHANNEL_ID)
+    # Logs + transcript
+    logs_channel = interaction.guild.get_channel(LOGS_CHANNEL_ID)
     if logs_channel:
-        transcript = build_transcript(data, closed_at, str(ctx.author))
-        file_bytes = transcript.encode("utf-8")
+        transcript = build_transcript(data, closed_at, str(interaction.user))
         file = discord.File(
-            fp=__import__("io").BytesIO(file_bytes),
+            fp=io.BytesIO(transcript.encode("utf-8")),
             filename=f"transcript-{data['member'].replace('#', '')}-{closed_at.strftime('%Y%m%d-%H%M%S')}.txt",
         )
-
-        embed = discord.Embed(
-            title="📋 Ticket fermé",
-            color=0xFF4444,
-        )
+        embed = discord.Embed(title="📋 Ticket fermé", color=0xFF4444)
         embed.add_field(name="👤 Membre", value=f"{data['member']}\n`{data['member_id']}`", inline=True)
-        embed.add_field(name="🛡️ Fermé par", value=str(ctx.author), inline=True)
+        embed.add_field(name="🛡️ Fermé par", value=str(interaction.user), inline=True)
         embed.add_field(
             name="🕐 Durée",
-            value=f"Ouvert: {fmt(data['opened_at'])}\nFermé: {fmt(closed_at)}",
+            value=f"Ouvert : {fmt(data['opened_at'])}\nFermé : {fmt(closed_at)}",
             inline=False,
         )
         mods = ", ".join(data["mods"]) if data["mods"] else "Aucun"
         embed.add_field(name="👥 Staff ayant répondu", value=mods, inline=False)
         embed.add_field(name="💬 Messages", value=str(len(data["messages"])), inline=True)
         embed.set_footer(text="Transcript joint en fichier ↓")
-
         await logs_channel.send(embed=embed, file=file)
 
     await asyncio.sleep(1)
-    await ctx.channel.delete()
+    await interaction.channel.delete()
+
+
+@tree.command(name="maintenance", description="Active ou désactive le mode maintenance")
+@app_commands.checks.has_permissions(administrator=True)
+async def toggle_maintenance(interaction: discord.Interaction):
+    global maintenance
+    maintenance = not maintenance
+    if maintenance:
+        await bot.change_presence(
+            status=discord.Status.do_not_disturb,
+            activity=discord.Game("🔧 Maintenance en cours")
+        )
+        await interaction.response.send_message("🔧 Maintenance **activée** — le bot ne répond plus aux DMs.", ephemeral=True)
+    else:
+        await bot.change_presence(status=discord.Status.online, activity=None)
+        await interaction.response.send_message("✅ Maintenance **désactivée** — le bot est de retour.", ephemeral=True)
+
+
+@fermer.error
+@toggle_maintenance.error
+async def on_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True)
 
 
 bot.run(TOKEN)
