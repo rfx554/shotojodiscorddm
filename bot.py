@@ -99,9 +99,10 @@ async def handle_dm(message):
     if message.attachments:
         embed.set_image(url=message.attachments[0].url)
 
-    await channel.send(embed=embed)
+    # Ping @here + embed
+    await channel.send("@here", embed=embed)
     await message.author.send(
-        "✅ Ton message a été reçu ! Un admin va te répondre dès que possible."
+        "✅ Ton message a bien été reçu ! Un membre du staff va te répondre dès que possible. 🙏"
     )
 
 
@@ -118,20 +119,37 @@ async def handle_ticket_reply(message):
     if not user:
         return
 
+    # Supprimer le message du modo pour que ça paraisse anonyme
+    try:
+        await message.delete()
+    except discord.Forbidden:
+        pass
+
     try:
         embed = discord.Embed(
             description=message.content or "*[fichier joint]*",
             color=0x57F287,
         )
         embed.set_author(
-            name=f"Support — {message.author.display_name}",
-            icon_url=message.author.display_avatar.url,
+            name="Support",
+            icon_url=bot.user.display_avatar.url,
         )
         if message.attachments:
             embed.set_image(url=message.attachments[0].url)
         await user.send(embed=embed)
     except discord.Forbidden:
         await message.channel.send("⚠️ Impossible d'envoyer le DM (DMs fermés).")
+
+
+CLOSING_FRAMES = [
+    "🔒 Fermeture du ticket dans **5**... ⏳",
+    "🔒 Fermeture du ticket dans **4**... ⌛",
+    "🔒 Fermeture du ticket dans **3**... ⏳",
+    "🔒 Fermeture du ticket dans **2**... ⌛",
+    "🔒 Fermeture du ticket dans **1**... ⏳",
+    "💥 Fermeture en cours... 🔐",
+    "🗑️ Suppression du salon... 🚨",
+]
 
 
 @bot.command(name="fermer")
@@ -147,13 +165,21 @@ async def fermer(ctx):
     user = bot.get_user(user_id)
     if user:
         try:
-            await user.send("🔒 Ton ticket a été fermé. Reviens si besoin !")
+            await user.send(
+                "🔒 Ton ticket a été **fermé** par le staff.\n"
+                "➡️ N'hésite pas à revenir si tu as besoin d'aide ! 👋"
+            )
         except discord.Forbidden:
             pass
 
     del open_tickets[user_id]
-    await ctx.send("✅ Ticket fermé. Suppression dans 5 secondes...")
-    await asyncio.sleep(5)
+
+    msg = await ctx.send(CLOSING_FRAMES[0])
+    for frame in CLOSING_FRAMES[1:]:
+        await asyncio.sleep(1)
+        await msg.edit(content=frame)
+
+    await asyncio.sleep(1)
     await ctx.channel.delete()
 
 
