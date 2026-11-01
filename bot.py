@@ -11,7 +11,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 CATEGORY_ID = int(os.getenv("TICKETS_CATEGORY_ID", "0"))
-LOGS_CHANNEL_ID = 1558332887000948757
+LOGS_CHANNEL_ID = 1566258367901597776
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -135,6 +135,7 @@ async def relay_to_user(message: discord.Message):
     if user_id is None:
         return
 
+    # Conserver le message du modérateur dans le salon du ticket.
     open_tickets[user_id]["mods"].add(str(message.author))
     open_tickets[user_id]["messages"].append({
         "time": now(),
@@ -143,13 +144,14 @@ async def relay_to_user(message: discord.Message):
         "content": message.content or "[fichier joint]",
     })
 
-    try:
-        await message.delete()
-    except discord.Forbidden:
-        pass
-
     user = bot.get_user(user_id)
-    if not user:
+    if user is None:
+        try:
+            user = await bot.fetch_user(user_id)
+        except (discord.NotFound, discord.HTTPException):
+            user = None
+
+    if user is None:
         return
 
     try:
@@ -158,11 +160,43 @@ async def relay_to_user(message: discord.Message):
             color=0x57F287,
         )
         embed.set_author(name="Support", icon_url=bot.user.display_avatar.url)
+
         if message.attachments:
-            embed.set_image(url=message.attachments[0].url)
+            embed.add_field(
+                name="📎 Fichier(s) joint(s)",
+                value="\\n".join(a.url for a in message.attachments[:5]),
+                inline=False,
+            )
+            image_attachment = next(
+                (a for a in message.attachments if a.content_type and a.content_type.startswith("image/")),
+                None,
+            )
+            if image_attachment:
+                embed.set_image(url=image_attachment.url)
+
         await user.send(embed=embed)
+
+        confirmation = discord.Embed(
+            description="✅ **Ton message a bien été envoyé au membre !**\n"
+                        "📨 La réponse a été transmise en message privé.",
+            color=0x57F287,
+        )
+        await message.channel.send(embed=confirmation)
+
     except discord.Forbidden:
-        await message.channel.send("⚠️ Impossible d'envoyer le message, l'utilisateur a ses DMs fermés.")
+        warning = discord.Embed(
+            description="⚠️ **Le message n'a pas pu être envoyé.**\n"
+                        "L'utilisateur a probablement désactivé ses messages privés.",
+            color=0xED4245,
+        )
+        await message.channel.send(embed=warning)
+    except discord.HTTPException as error:
+        print(f"Erreur lors de l'envoi du message du ticket : {error}")
+        warning = discord.Embed(
+            description="⚠️ **Une erreur Discord a empêché l'envoi du message.**",
+            color=0xED4245,
+        )
+        await message.channel.send(embed=warning)
 
 
 # Intercepter les messages dans les salons tickets
@@ -286,6 +320,13 @@ async def fermer(interaction: discord.Interaction):
 
     # Logs + transcript
     logs_channel = interaction.guild.get_channel(LOGS_CHANNEL_ID)
+    if logs_channel is None:
+        try:
+            logs_channel = await bot.fetch_channel(LOGS_CHANNEL_ID)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+            logs_channel = None
+            print(f"❌ Impossible de récupérer le salon de logs {LOGS_CHANNEL_ID}: {error}")
+
     if logs_channel:
         transcript = build_transcript(data, closed_at, str(interaction.user))
         filename = f"transcript-{data['member'].replace('#', '').replace(' ', '_')}-{closed_at.strftime('%Y%m%d-%H%M%S')}.txt"
@@ -343,7 +384,18 @@ async def fermer(interaction: discord.Interaction):
         embed.set_thumbnail(url=f"https://cdn.discordapp.com/avatars/{data['member_id']}/avatar.png")
         embed.set_footer(text=f"ID ticket : {data['channel_id']} • Transcript en pièce jointe")
 
-        await logs_channel.send(embed=embed, file=file)
+        try:
+            await logs_channel.send(embed=embed, file=file)
+            print(f"✅ Transcript du ticket envoyé dans #{logs_channel.name} ({LOGS_CHANNEL_ID})")
+        except (discord.Forbidden, discord.HTTPException) as error:
+            print(f"❌ Impossible d'envoyer le transcript dans {LOGS_CHANNEL_ID}: {error}")
+            await interaction.followup.send(
+                "⚠️ Le ticket va être fermé, mais l'envoi du transcript dans le salon de logs a échoué. "
+                "Vérifie les permissions du bot.",
+                ephemeral=True,
+            )
+    else:
+        print(f"❌ Salon de logs introuvable : {LOGS_CHANNEL_ID}")
 
     await asyncio.sleep(1)
     await interaction.channel.delete()
