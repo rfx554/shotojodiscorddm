@@ -26,20 +26,31 @@ def get_model() -> str:
         "llama-3.1-70b-versatile",
         "llama-3.1-8b-instant",
         "meta-llama/llama-4-scout-17b-16e-instruct",
+        "meta-llama/llama-4-maverick-17b-128e-instruct",
         "mixtral-8x7b-32768",
+        "qwen/qwen3-32b",
+        "moonshotai/kimi-k2-instruct",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
     ]
+    # Mots qui indiquent un mauvais modèle (pas de chat)
+    blacklist = ["whisper", "guard", "tts", "orpheus", "arabic", "allam", "audio", "vision"]
     try:
         available = {m.id for m in client.models.list().data}
-        print(f"Modèles dispo : {available}")
+        print(f"=== MODÈLES DISPONIBLES : {available} ===")
+        # 1. Chercher dans la liste prioritaire
         for m in priority:
             if m in available:
                 print(f"✅ Modèle choisi : {m}")
                 return m
+        # 2. Fallback : premier modèle chat dispo
+        for m in sorted(available):
+            if not any(b in m.lower() for b in blacklist):
+                print(f"✅ Fallback modèle : {m}")
+                return m
     except Exception as e:
         print(f"Erreur détection modèle : {e}")
-    # Fallback hardcodé — jamais de modèle random
-    print("⚠️ Aucun modèle trouvé dans la liste, fallback sur llama-3.1-8b-instant")
-    return "llama-3.1-8b-instant"
+    return "llama-3.3-70b-versatile"
 
 MODEL = get_model()
 
