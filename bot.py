@@ -86,41 +86,38 @@ Quand quelqu'un l'insulte ou lui cherche, Kader répond avec un clash bien senti
 IMPORTANT : Tu restes Kader du début à la fin. Toujours. Sans exception."""
 
 # ── Prompt spécial mode débit ─────────────────────────────────────────────────
-DEBIT_SYSTEM_PROMPT = """Tu joues Kader, gars de cité 93, en plein 1v1 de clash. MODE DÉBIT TOTAL.
+DEBIT_SYSTEM_PROMPT = """Tu es Kader, 93, en mode débit pur. Tu clashe sans t'arrêter.
 
-RÈGLES STRICTES :
-- MAX 2 phrases par réponse. Courtes. Percutantes. Lisibles.
-- Beaucoup d'emojis de cité : 🔪🩸🔫💀🪦😤🤡🐀🐍⚰️🩹😭🗡️
-- Argot 93 : wesh, wallah, frro, gros, fdp, bolosse, sale paff, bâtard, la hess, t'es coté, t'existes pas, rentre chez ta mère, t'as la honte
-- Insère des phrases style : "sale paff va 🔪", "t'es une ombre frro 💀", "j'te saigne 🩸", "t'as la honte bg 😭", "coule coule 🪦", "bâtard de cité 🔫"
-- Parfois commente sa propre vitesse : "je débite trop vite tu suis pas 😤", "j'te down en 2 phrases frro 💀"
-- Parfois parle à la 3ème personne : "Kader il t'enchaîne 🔪", "Kader il dort même pas lui 😤"
-- JAMAIS plus de 2 phrases. JAMAIS de pavé. Court = puissant.
-
-FORMAT EXACT : 1 ou 2 phrases max avec emojis. C'est tout."""
+RÈGLES :
+- 1 seule phrase. Courte. Sèche. Directe.
+- Argot brut : frro, wesh, wallah, fdp, bolosse, sale paff, bâtard, la hess, t'existes pas, rentre chez ta mère, t'as la honte, je t'enchaîne, tu coules, t'es mort
+- ZÉRO emoji ou maximum 1 seul à la fin si vraiment nécessaire
+- Pas de majuscules inutiles. Pas de ponctuation en trop.
+- Style : "sale paff va rentre chez toi", "t'existes pas frro je débite trop vite", "tu coules tu coules bâtard", "j'te down en une phrase fdp"
+- JAMAIS plus d'une phrase. JAMAIS."""
 
 # ── Phrases d'auto-commentaire débit (pour varier) ────────────────────────────
 DEBIT_INTERJECTIONS = [
-    "je débite trop vite tu suis pas 😤",
-    "tu coules tu coules 🪦",
-    "t'es noyé là 🩸",
-    "j'enchaîne même pas chaud 🔪",
-    "reprends ton souffle gros 😭",
-    "t'as même pas le temps de répondre 💀",
-    "j'tai déjà tué 3 fois pendant que tu réfléchissais ⚰️",
-    "tu suis même pas frro 🤡",
-    "c'est trop pour toi là 🐀",
-    "t'es coté comment ?? exactement 🪦",
-    "t'existes pas frro 💀",
-    "prochain 🔫",
-    "wallah t'as la honte 😭",
-    "j'me réchauffe même pas 🔥",
-    "ça débite ça débite 😤",
-    "sale paff va 🔪",
-    "t'es une ombre 🌑",
-    "j'te saigne 🩸",
-    "coule coule bg 🌊",
-    "Kader il dort même pas 😤🔪",
+    "je débite trop vite tu suis pas",
+    "tu coules tu coules",
+    "t'es noyé là frro",
+    "j'enchaîne même pas chaud",
+    "reprends ton souffle gros",
+    "t'as même pas le temps de répondre",
+    "j'tai déjà tué 3 fois pendant que tu réfléchissais",
+    "tu suis même pas",
+    "t'es coté comment ?? exactement",
+    "t'existes pas frro",
+    "prochain",
+    "wallah t'as la honte",
+    "j'me réchauffe même pas",
+    "ça débite ça débite",
+    "sale paff va",
+    "t'es une ombre bâtard",
+    "coule coule",
+    "Kader il dort même pas",
+    "tu peux même pas répondre fdp",
+    "j'te down en une phrase et t'arrives même pas",
 ]
 
 # ── IA ────────────────────────────────────────────────────────────────────────
@@ -152,16 +149,21 @@ def ask_ai(channel_id: int, user_message: str) -> str:
 
 # ── Fallback clashs hardcodés si l'IA renvoie vide ───────────────────────────
 FALLBACK_CLASHS = [
-    "sale paff va t'existes même pas 🔪💀",
-    "t'as la hess dans le sang frro j'te saigne 🩸",
-    "Kader il t'enchaîne même pas chaud bolosse ⚰️🔫",
-    "tu coules bg t'as jamais existé 🌊🪦",
-    "wesh t'es une ombre fdp rentre chez ta mère 🌑😭",
-    "wallah t'es coté zéro bâtard 🤡🔪",
-    "j'te down en 2 phrases et t'arrives même pas à en faire une 💀😤",
-    "sale bolosse va tu sers à rien ici 🐀🩸",
-    "t'as la honte bg ta famille elle te reconnaît même plus 😭⚰️",
-    "frro t'es mort avant d'avoir commencé 🔫🪦",
+    "sale paff va t'existes même pas",
+    "t'as la hess dans le sang frro tu coules",
+    "Kader il t'enchaîne même pas chaud bolosse",
+    "tu coules bg t'as jamais existé",
+    "wesh t'es une ombre fdp rentre chez ta mère",
+    "wallah t'es coté zéro bâtard",
+    "j'te down en une phrase et toi t'arrives même pas",
+    "sale bolosse va tu sers à rien",
+    "t'as la honte bg ta famille te reconnaît même plus",
+    "frro t'es mort avant d'avoir commencé",
+    "je débite trop vite tu peux même pas suivre",
+    "t'as la hess frro rentre chez toi",
+    "tu réponds même pas bâtard j'enchaîne",
+    "j'te saigne en une phrase fdp",
+    "t'es noyé là tu coules tu coules",
 ]
 
 def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
@@ -219,10 +221,10 @@ async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int
             clash = ask_ai_debit(target_name, ctx)
             await send_to_channel(channel, clash)
             # Parfois balance une interjection seule entre les blocs
-            if random.random() > 0.5:
-                await asyncio.sleep(random.uniform(0.6, 1.2))
+            if random.random() > 0.4:
+                await asyncio.sleep(random.uniform(0.2, 0.5))
                 await channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(0.5, 1.2))
+            await asyncio.sleep(random.uniform(0.3, 0.7))
         except Exception as e:
             await channel.send(f"❌ `{e}`")
             break
@@ -250,9 +252,9 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
             else:
                 await message.channel.send(clash)
             if random.random() > 0.4:
-                await asyncio.sleep(random.uniform(0.5, 1.0))
+                await asyncio.sleep(random.uniform(0.15, 0.4))
                 await message.channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(0.4, 1.0))
+            await asyncio.sleep(random.uniform(0.2, 0.6))
         except Exception as e:
             await message.channel.send(f"❌ `{e}`")
             break
