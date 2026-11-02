@@ -47,7 +47,7 @@ async def handle_dm(message):
 
     user_id = message.author.id
 
-    # Ticket déjà ouvert → relay
+    # Ticket déjà ouvert → relay.
     if user_id in open_tickets:
         channel = guild.get_channel(open_tickets[user_id]["channel_id"])
         if channel:
