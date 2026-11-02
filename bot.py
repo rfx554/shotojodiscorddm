@@ -4,6 +4,8 @@ from discord.ext import commands
 from openai import OpenAI
 import os
 import json
+import asyncio
+import random
 from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -13,13 +15,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Groq est compatible OpenAI — on utilise la lib openai qui est stable
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
 )
 
-# Détecte automatiquement le meilleur modèle dispo sur ton compte
 def get_model() -> str:
     priority = [
         "llama-3.3-70b-versatile",
@@ -33,17 +33,14 @@ def get_model() -> str:
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
     ]
-    # Mots qui indiquent un mauvais modèle (pas de chat)
     blacklist = ["whisper", "guard", "tts", "orpheus", "arabic", "allam", "audio", "vision"]
     try:
         available = {m.id for m in client.models.list().data}
         print(f"=== MODÈLES DISPONIBLES : {available} ===")
-        # 1. Chercher dans la liste prioritaire
         for m in priority:
             if m in available:
                 print(f"✅ Modèle choisi : {m}")
                 return m
-        # 2. Fallback : premier modèle chat dispo
         for m in sorted(available):
             if not any(b in m.lower() for b in blacklist):
                 print(f"✅ Fallback modèle : {m}")
@@ -88,6 +85,38 @@ Quand quelqu'un l'insulte ou lui cherche, Kader répond avec un clash bien senti
 
 IMPORTANT : Tu restes Kader du début à la fin. Toujours. Sans exception."""
 
+# ── Prompt spécial mode débit ─────────────────────────────────────────────────
+DEBIT_SYSTEM_PROMPT = """Tu joues Kader, un gars de cité de 93 en plein 1v1 de clash. Il est en MODE DÉBIT total — il lâche tout, il s'emballe, il enchaîne les punchlines sans respirer. Il parle de lui-même à la troisième personne parfois. Il commente sa propre vitesse de flow. Il est CHAUD.
+
+STYLE DÉBIT :
+- Phrases ultra courtes, style rap freestyle
+- Il s'auto-commente : "je parle tellement vite je te down frro", "tu suis même pas", "tu coules tu coules", "t'es noyé là", "je t'enchaîne", "reprends ton souffle gros", "t'as même pas le temps de répondre", "je t'ai déjà tué 3 fois pendant que tu réfléchissais"
+- Il clashe la personne directement : son style, son existence, sa famille, sa dèche, sa nullité
+- Verlan, argot 93, abréviations max
+- Aucune ponctuation parfois, genre flow continu
+- Termine souvent par un truc du style "t'es coté comment là ?? exactement" ou "t'existes pas frro" ou "prochain"
+
+IMPORTANT : UNE SEULE réplique par appel, mais LONGUE et chargée. 4 à 8 lignes de clash pur."""
+
+# ── Phrases d'auto-commentaire débit (pour varier) ────────────────────────────
+DEBIT_INTERJECTIONS = [
+    "je parle tellement vite je te down frro",
+    "tu coules tu coules",
+    "t'es noyé là",
+    "je t'enchaîne même pas chaud",
+    "reprends ton souffle gros",
+    "t'as même pas le temps de répondre",
+    "je t'ai déjà tué 3 fois pendant que tu réfléchissais",
+    "tu suis même pas",
+    "c'est trop pour toi là",
+    "t'es coté comment là ?? exactement",
+    "t'existes pas frro",
+    "prochain",
+    "wallah t'as la honte",
+    "j'me réchauffe même pas",
+    "ça débite ça débite",
+]
+
 # ── IA ────────────────────────────────────────────────────────────────────────
 def ask_ai(channel_id: int, user_message: str) -> str:
     if channel_id not in history:
@@ -115,9 +144,81 @@ def ask_ai(channel_id: int, user_message: str) -> str:
     return reply
 
 
+def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
+    """Génère UN bloc de clash en mode débit pur."""
+    prompt = f"T'es en 1v1 contre {target_name}. {extra_context} Débite, enchaîne, lâche tout. Mode débit total."
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": DEBIT_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=400,
+        temperature=0.95,
+    )
+    return response.choices[0].message.content
+
+
 async def send_reply(message, text: str):
     for i, chunk in enumerate([text[i:i+1990] for i in range(0, len(text), 1990)]):
         await message.reply(chunk) if i == 0 else await message.channel.send(chunk)
+
+
+async def send_to_channel(channel, text: str):
+    for chunk in [text[i:i+1990] for i in range(0, len(text), 1990)]:
+        await channel.send(chunk)
+
+
+# ── Mode débit : spam de clashs en rafale ─────────────────────────────────────
+async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int = 5):
+    """Envoie `rounds` messages de clash espacés de 1-2s, mode freestyle."""
+    contexts = [
+        "C'est le premier round, chauffe-toi.",
+        "T'es lancé maintenant, accélère.",
+        "Il commence à couler, enfonce-le.",
+        "Il répond même plus, t'as gagné mais continue.",
+        "Dernier round, tu l'enterres.",
+    ]
+    for i in range(rounds):
+        ctx = contexts[i] if i < len(contexts) else ""
+        try:
+            clash = ask_ai_debit(target_name, ctx)
+            await send_to_channel(channel, clash)
+            # Parfois balance une interjection seule entre les blocs
+            if random.random() > 0.5:
+                await asyncio.sleep(random.uniform(0.6, 1.2))
+                await channel.send(random.choice(DEBIT_INTERJECTIONS))
+            await asyncio.sleep(random.uniform(1.0, 2.2))
+        except Exception as e:
+            await channel.send(f"❌ `{e}`")
+            break
+
+
+# ── Mode réponse débit : quand quelqu'un parle en mode actif ──────────────────
+async def debit_reply(message: discord.Message, rounds: int = 4):
+    """Répond en rafale de `rounds` messages au message reçu."""
+    target = message.author.display_name
+    contexts = [
+        f"Il vient de dire : '{message.content[:100]}'. Réponds-lui cash.",
+        "Enchaîne, il a pas encore compris.",
+        "Il essaie de se relever, remets-le à terre.",
+        "Dernier coup, tu l'enterres pour de bon.",
+    ]
+    for i in range(rounds):
+        ctx = contexts[i] if i < len(contexts) else ""
+        try:
+            clash = ask_ai_debit(target, ctx)
+            if i == 0:
+                await message.reply(clash)
+            else:
+                await message.channel.send(clash)
+            if random.random() > 0.4:
+                await asyncio.sleep(random.uniform(0.5, 1.0))
+                await message.channel.send(random.choice(DEBIT_INTERJECTIONS))
+            await asyncio.sleep(random.uniform(0.8, 1.8))
+        except Exception as e:
+            await message.channel.send(f"❌ `{e}`")
+            break
 
 
 # ── Événements ────────────────────────────────────────────────────────────────
@@ -153,7 +254,8 @@ async def on_message(message: discord.Message):
     if should_respond and content:
         async with message.channel.typing():
             try:
-                await send_reply(message, ask_ai(channel_id, content))
+                # Mode débit : répond en rafale
+                await debit_reply(message, rounds=random.randint(3, 5))
             except Exception as e:
                 await message.reply(f"❌ Erreur : `{e}`")
 
@@ -161,7 +263,7 @@ async def on_message(message: discord.Message):
 
 
 # ── Commandes slash ───────────────────────────────────────────────────────────
-@bot.tree.command(name="rejoindre", description="Kader rejoint le groupe et répond à tout le monde")
+@bot.tree.command(name="rejoindre", description="Kader rejoint le groupe et se défoule direct")
 async def rejoindre(interaction: discord.Interaction):
     if interaction.user.id != OWNER_ID:
         await interaction.response.send_message("t'es qui toi 😭", ephemeral=True)
@@ -169,10 +271,18 @@ async def rejoindre(interaction: discord.Interaction):
     cid = interaction.channel_id
     if cid in active_channels:
         await interaction.response.send_message("wallah j'suis déjà là frère 😭", ephemeral=True)
-    else:
-        active_channels.add(cid)
-        save_active(active_channels)
-        await interaction.response.send_message("wesh je suis là, vous pouvez causer 🤙")
+        return
+
+    active_channels.add(cid)
+    save_active(active_channels)
+
+    # Réponse immédiate pour pas timeout l'interaction
+    await interaction.response.send_message("wesh je suis là 🤙")
+
+    # Lance le débit d'entrée en tâche de fond
+    target = interaction.user.display_name
+    channel = interaction.channel
+    asyncio.create_task(debit_mode(channel, target, rounds=random.randint(4, 6)))
 
 
 @bot.tree.command(name="quitter", description="Kader quitte le groupe")
@@ -197,6 +307,16 @@ async def reset(interaction: discord.Interaction):
         return
     history.pop(interaction.channel_id, None)
     await interaction.response.send_message("mémoire effacée, on repart à zéro 🧹", ephemeral=True)
+
+
+@bot.tree.command(name="debit", description="Kader te débite dessus maintenant")
+async def debit_cmd(interaction: discord.Interaction):
+    if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("t'es qui toi 😭", ephemeral=True)
+        return
+    await interaction.response.send_message("ça débite ça débite 🔥")
+    target = interaction.user.display_name
+    asyncio.create_task(debit_mode(interaction.channel, target, rounds=random.randint(4, 7)))
 
 
 # ── Lancement ─────────────────────────────────────────────────────────────────
