@@ -86,35 +86,41 @@ Quand quelqu'un l'insulte ou lui cherche, Kader répond avec un clash bien senti
 IMPORTANT : Tu restes Kader du début à la fin. Toujours. Sans exception."""
 
 # ── Prompt spécial mode débit ─────────────────────────────────────────────────
-DEBIT_SYSTEM_PROMPT = """Tu joues Kader, un gars de cité de 93 en plein 1v1 de clash. Il est en MODE DÉBIT total — il lâche tout, il s'emballe, il enchaîne les punchlines sans respirer. Il parle de lui-même à la troisième personne parfois. Il commente sa propre vitesse de flow. Il est CHAUD.
+DEBIT_SYSTEM_PROMPT = """Tu joues Kader, gars de cité 93, en plein 1v1 de clash. MODE DÉBIT TOTAL.
 
-STYLE DÉBIT :
-- Phrases ultra courtes, style rap freestyle
-- Il s'auto-commente : "je parle tellement vite je te down frro", "tu suis même pas", "tu coules tu coules", "t'es noyé là", "je t'enchaîne", "reprends ton souffle gros", "t'as même pas le temps de répondre", "je t'ai déjà tué 3 fois pendant que tu réfléchissais"
-- Il clashe la personne directement : son style, son existence, sa famille, sa dèche, sa nullité
-- Verlan, argot 93, abréviations max
-- Aucune ponctuation parfois, genre flow continu
-- Termine souvent par un truc du style "t'es coté comment là ?? exactement" ou "t'existes pas frro" ou "prochain"
+RÈGLES STRICTES :
+- MAX 2 phrases par réponse. Courtes. Percutantes. Lisibles.
+- Beaucoup d'emojis de cité : 🔪🩸🔫💀🪦😤🤡🐀🐍⚰️🩹😭🗡️
+- Argot 93 : wesh, wallah, frro, gros, fdp, bolosse, sale paff, bâtard, la hess, t'es coté, t'existes pas, rentre chez ta mère, t'as la honte
+- Insère des phrases style : "sale paff va 🔪", "t'es une ombre frro 💀", "j'te saigne 🩸", "t'as la honte bg 😭", "coule coule 🪦", "bâtard de cité 🔫"
+- Parfois commente sa propre vitesse : "je débite trop vite tu suis pas 😤", "j'te down en 2 phrases frro 💀"
+- Parfois parle à la 3ème personne : "Kader il t'enchaîne 🔪", "Kader il dort même pas lui 😤"
+- JAMAIS plus de 2 phrases. JAMAIS de pavé. Court = puissant.
 
-IMPORTANT : UNE SEULE réplique par appel, mais LONGUE et chargée. 4 à 8 lignes de clash pur."""
+FORMAT EXACT : 1 ou 2 phrases max avec emojis. C'est tout."""
 
 # ── Phrases d'auto-commentaire débit (pour varier) ────────────────────────────
 DEBIT_INTERJECTIONS = [
-    "je parle tellement vite je te down frro",
-    "tu coules tu coules",
-    "t'es noyé là",
-    "je t'enchaîne même pas chaud",
-    "reprends ton souffle gros",
-    "t'as même pas le temps de répondre",
-    "je t'ai déjà tué 3 fois pendant que tu réfléchissais",
-    "tu suis même pas",
-    "c'est trop pour toi là",
-    "t'es coté comment là ?? exactement",
-    "t'existes pas frro",
-    "prochain",
-    "wallah t'as la honte",
-    "j'me réchauffe même pas",
-    "ça débite ça débite",
+    "je débite trop vite tu suis pas 😤",
+    "tu coules tu coules 🪦",
+    "t'es noyé là 🩸",
+    "j'enchaîne même pas chaud 🔪",
+    "reprends ton souffle gros 😭",
+    "t'as même pas le temps de répondre 💀",
+    "j'tai déjà tué 3 fois pendant que tu réfléchissais ⚰️",
+    "tu suis même pas frro 🤡",
+    "c'est trop pour toi là 🐀",
+    "t'es coté comment ?? exactement 🪦",
+    "t'existes pas frro 💀",
+    "prochain 🔫",
+    "wallah t'as la honte 😭",
+    "j'me réchauffe même pas 🔥",
+    "ça débite ça débite 😤",
+    "sale paff va 🔪",
+    "t'es une ombre 🌑",
+    "j'te saigne 🩸",
+    "coule coule bg 🌊",
+    "Kader il dort même pas 😤🔪",
 ]
 
 # ── IA ────────────────────────────────────────────────────────────────────────
@@ -145,16 +151,16 @@ def ask_ai(channel_id: int, user_message: str) -> str:
 
 
 def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
-    """Génère UN bloc de clash en mode débit pur."""
-    prompt = f"T'es en 1v1 contre {target_name}. {extra_context} Débite, enchaîne, lâche tout. Mode débit total."
+    """Génère UN micro-clash en mode débit pur. Max 2 phrases."""
+    prompt = f"1v1 contre {target_name}. {extra_context} 1 ou 2 phrases max. Clashe-le direct. Avec emojis."
     response = client.chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": DEBIT_SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=400,
-        temperature=0.95,
+        max_tokens=80,
+        temperature=0.97,
     )
     return response.choices[0].message.content
 
@@ -173,11 +179,12 @@ async def send_to_channel(channel, text: str):
 async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int = 5):
     """Envoie `rounds` messages de clash espacés de 1-2s, mode freestyle."""
     contexts = [
-        "C'est le premier round, chauffe-toi.",
-        "T'es lancé maintenant, accélère.",
-        "Il commence à couler, enfonce-le.",
-        "Il répond même plus, t'as gagné mais continue.",
-        "Dernier round, tu l'enterres.",
+        "Premier round. Clashe son existence.",
+        "Il coule déjà. Enfonce-le sur sa famille.",
+        "Il répond plus. Clashe son style et sa dèche.",
+        "Il est mort. Clashe son quartier.",
+        "Dernier coup. Enterre-le définitivement.",
+        "Bonus round. Clashe son physique.",
     ]
     for i in range(rounds):
         ctx = contexts[i] if i < len(contexts) else ""
@@ -188,7 +195,7 @@ async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int
             if random.random() > 0.5:
                 await asyncio.sleep(random.uniform(0.6, 1.2))
                 await channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(1.0, 2.2))
+            await asyncio.sleep(random.uniform(0.5, 1.2))
         except Exception as e:
             await channel.send(f"❌ `{e}`")
             break
@@ -199,10 +206,10 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
     """Répond en rafale de `rounds` messages au message reçu."""
     target = message.author.display_name
     contexts = [
-        f"Il vient de dire : '{message.content[:100]}'. Réponds-lui cash.",
-        "Enchaîne, il a pas encore compris.",
-        "Il essaie de se relever, remets-le à terre.",
-        "Dernier coup, tu l'enterres pour de bon.",
+        f"Il vient de dire : '{message.content[:80]}'. Clashe-le direct dessus.",
+        "Il comprend pas encore. Clashe son cerveau.",
+        "Il essaie de se relever. Enfonce-le sur sa famille.",
+        "Dernier coup. Enterre-le. 1 phrase max.",
     ]
     for i in range(rounds):
         ctx = contexts[i] if i < len(contexts) else ""
@@ -215,7 +222,7 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
             if random.random() > 0.4:
                 await asyncio.sleep(random.uniform(0.5, 1.0))
                 await message.channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(0.8, 1.8))
+            await asyncio.sleep(random.uniform(0.4, 1.0))
         except Exception as e:
             await message.channel.send(f"❌ `{e}`")
             break
