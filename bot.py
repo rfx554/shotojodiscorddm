@@ -150,27 +150,54 @@ def ask_ai(channel_id: int, user_message: str) -> str:
     return reply
 
 
+# ── Fallback clashs hardcodés si l'IA renvoie vide ───────────────────────────
+FALLBACK_CLASHS = [
+    "sale paff va t'existes même pas 🔪💀",
+    "t'as la hess dans le sang frro j'te saigne 🩸",
+    "Kader il t'enchaîne même pas chaud bolosse ⚰️🔫",
+    "tu coules bg t'as jamais existé 🌊🪦",
+    "wesh t'es une ombre fdp rentre chez ta mère 🌑😭",
+    "wallah t'es coté zéro bâtard 🤡🔪",
+    "j'te down en 2 phrases et t'arrives même pas à en faire une 💀😤",
+    "sale bolosse va tu sers à rien ici 🐀🩸",
+    "t'as la honte bg ta famille elle te reconnaît même plus 😭⚰️",
+    "frro t'es mort avant d'avoir commencé 🔫🪦",
+]
+
 def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
     """Génère UN micro-clash en mode débit pur. Max 2 phrases."""
     prompt = f"1v1 contre {target_name}. {extra_context} 1 ou 2 phrases max. Clashe-le direct. Avec emojis."
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": DEBIT_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=80,
-        temperature=0.97,
-    )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": DEBIT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=80,
+            temperature=0.97,
+        )
+        result = response.choices[0].message.content
+        # Si vide ou trop court → fallback
+        if not result or not result.strip() or len(result.strip()) < 5:
+            return random.choice(FALLBACK_CLASHS)
+        return result.strip()
+    except Exception:
+        return random.choice(FALLBACK_CLASHS)
 
 
 async def send_reply(message, text: str):
+    text = (text or "").strip()
+    if not text:
+        text = random.choice(FALLBACK_CLASHS)
     for i, chunk in enumerate([text[i:i+1990] for i in range(0, len(text), 1990)]):
         await message.reply(chunk) if i == 0 else await message.channel.send(chunk)
 
 
 async def send_to_channel(channel, text: str):
+    text = (text or "").strip()
+    if not text:
+        text = random.choice(FALLBACK_CLASHS)
     for chunk in [text[i:i+1990] for i in range(0, len(text), 1990)]:
         await channel.send(chunk)
 
@@ -215,6 +242,9 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
         ctx = contexts[i] if i < len(contexts) else ""
         try:
             clash = ask_ai_debit(target, ctx)
+            clash = clash.strip() if clash else ""
+            if not clash:
+                clash = random.choice(FALLBACK_CLASHS)
             if i == 0:
                 await message.reply(clash)
             else:
