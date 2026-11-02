@@ -5,7 +5,6 @@ import os
 
 # ── Config ────────────────────────────────────────────────────────────────────
 OWNER_ID = 1419320803199029402
-MODEL    = "llama-3.3-70b-versatile"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -16,6 +15,33 @@ client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
 )
+
+# Détecte automatiquement le meilleur modèle dispo sur ton compte
+def get_model() -> str:
+    priority = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "llama-3.1-8b-instant",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "mixtral-8x7b-32768",
+    ]
+    try:
+        available = {m.id for m in client.models.list().data}
+        print(f"Modèles dispo : {available}")
+        for m in priority:
+            if m in available:
+                print(f"✅ Modèle choisi : {m}")
+                return m
+        # Fallback : premier modèle de chat dispo
+        for m in available:
+            if "whisper" not in m and "guard" not in m and "tts" not in m:
+                print(f"✅ Fallback modèle : {m}")
+                return m
+    except Exception as e:
+        print(f"Erreur détection modèle : {e}")
+    return "llama-3.3-70b-versatile"
+
+MODEL = get_model()
 
 history: dict[int, list] = {}
 MAX_HISTORY = 10
