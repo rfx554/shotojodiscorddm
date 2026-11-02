@@ -12,9 +12,12 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-MODEL = "llama-3.3-70b-versatile"  # Gratuit et très bon
+MODEL = "llama3-70b-8192"  # Modèle gratuit et stable sur Groq
 
-# ── Salons actifs (persistés dans un fichier) ─────────────────────────────────
+# Serveurs où le bot ne répondra JAMAIS
+BLOCKED_GUILDS = ["shotojo"]  # nom du serveur en minuscules
+
+# ── Salons actifs ─────────────────────────────────────────────────────────────
 ACTIVE_FILE = "active_channels.json"
 
 def load_active():
@@ -28,10 +31,14 @@ def save_active(channels):
         json.dump(list(channels), f)
 
 active_channels = load_active()
-
-# Mémoire courte par salon (10 derniers échanges)
 history: dict[int, list] = {}
 MAX_HISTORY = 10
+
+# ── Vérification serveur bloqué ───────────────────────────────────────────────
+def is_blocked(guild) -> bool:
+    if guild is None:
+        return False
+    return guild.name.lower() in BLOCKED_GUILDS
 
 # ── Fonction IA ───────────────────────────────────────────────────────────────
 def ask_groq(channel_id: int, user_message: str, username: str) -> str:
@@ -41,7 +48,6 @@ def ask_groq(channel_id: int, user_message: str, username: str) -> str:
     msgs = history[channel_id]
     msgs.append({"role": "user", "content": f"{username}: {user_message}"})
 
-    # Garder seulement les derniers messages
     if len(msgs) > MAX_HISTORY * 2:
         msgs = msgs[-(MAX_HISTORY * 2):]
         history[channel_id] = msgs
@@ -70,7 +76,6 @@ def ask_groq(channel_id: int, user_message: str, username: str) -> str:
 
 
 async def send_reply(message, text: str):
-    """Envoie la réponse en découpant si > 2000 caractères."""
     chunks = [text[i:i+1990] for i in range(0, len(text), 1990)]
     for i, chunk in enumerate(chunks):
         if i == 0:
@@ -88,17 +93,19 @@ async def on_ready():
         print(f"⚡ {len(synced)} commande(s) slash synchronisée(s)")
     except Exception as e:
         print(f"❌ Erreur sync : {e}")
+    # 👻 Apparaître hors ligne (invisible) mais fonctionnel
     await bot.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.listening,
-            name="/rejoindre | @mention"
-        )
+        status=discord.Status.invisible
     )
 
 
 @bot.event
 async def on_message(message: discord.Message):
     if message.author == bot.user:
+        return
+
+    # ❌ Ignorer les serveurs bloqués
+    if is_blocked(message.guild):
         return
 
     channel_id = message.channel.id
@@ -133,6 +140,9 @@ async def on_message(message: discord.Message):
 # ── Commandes Slash ───────────────────────────────────────────────────────────
 @bot.tree.command(name="rejoindre", description="Le bot rejoint et répond à tous les messages du salon")
 async def rejoindre(interaction: discord.Interaction):
+    if is_blocked(interaction.guild):
+        await interaction.response.send_message("❌ Indisponible ici.", ephemeral=True)
+        return
     cid = interaction.channel_id
     if cid in active_channels:
         await interaction.response.send_message("✅ Je suis déjà actif ici !", ephemeral=True)
