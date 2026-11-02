@@ -35,14 +35,11 @@ def get_model() -> str:
             if m in available:
                 print(f"✅ Modèle choisi : {m}")
                 return m
-        # Fallback : premier modèle de chat dispo
-        for m in available:
-            if "whisper" not in m and "guard" not in m and "tts" not in m:
-                print(f"✅ Fallback modèle : {m}")
-                return m
     except Exception as e:
         print(f"Erreur détection modèle : {e}")
-    return "llama-3.3-70b-versatile"
+    # Fallback hardcodé — jamais de modèle random
+    print("⚠️ Aucun modèle trouvé dans la liste, fallback sur llama-3.1-8b-instant")
+    return "llama-3.1-8b-instant"
 
 MODEL = get_model()
 
