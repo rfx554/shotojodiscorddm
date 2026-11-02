@@ -6,6 +6,7 @@ import os
 import json
 import asyncio
 import random
+import httpx
 from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -86,6 +87,31 @@ Quand quelqu'un l'insulte ou lui cherche, Kader répond avec un clash bien senti
 IMPORTANT : Tu restes Kader du début à la fin. Toujours. Sans exception."""
 
 # ── Prompt spécial mode débit ─────────────────────────────────────────────────
+# ── Actu fraîche pour nourrir les clashs ─────────────────────────────────────
+_actu_cache: list[str] = []
+_actu_ts: float = 0
+
+async def fetch_actu() -> list[str]:
+    """Récupère les titres RSS de l'actu FR (Le Monde). Cache 10 min."""
+    global _actu_cache, _actu_ts
+    import time
+    if _actu_cache and time.time() - _actu_ts < 600:
+        return _actu_cache
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get("https://www.lemonde.fr/rss/une.xml")
+            import re
+            titres = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", r.text)
+            if not titres:
+                titres = re.findall(r"<title>(.*?)</title>", r.text)
+            titres = [t.strip() for t in titres if len(t.strip()) > 15][:15]
+            if titres:
+                _actu_cache = titres
+                _actu_ts = time.time()
+    except Exception as e:
+        print(f"Actu fetch err: {e}")
+    return _actu_cache or []
+
 DEBIT_SYSTEM_PROMPT = """Tu es Kader, 93, en mode débit pur. Tu clashe sans t'arrêter.
 
 RÈGLES :
@@ -94,6 +120,8 @@ RÈGLES :
 - ZÉRO emoji ou maximum 1 seul à la fin si vraiment nécessaire
 - Pas de majuscules inutiles. Pas de ponctuation en trop.
 - Style : "sale paff va rentre chez toi", "t'existes pas frro je débite trop vite", "tu coules tu coules bâtard", "j'te down en une phrase fdp"
+- Si on te donne des titres d'actu, utilise-les pour clasher : compare la personne à un événement nul, un personnage politique raté, un blocus de lycée, une info minable. Sois créatif et méchant.
+- Exemples avec actu : "t'as même pas le niveau d'un blocus de lycée frro", "tu fais pitié comme [politicien] en campagne bâtard", "t'es l'info inutile de la semaine fdp"
 - JAMAIS plus d'une phrase. JAMAIS."""
 
 # ── Phrases d'auto-commentaire débit (pour varier) ────────────────────────────
@@ -166,9 +194,15 @@ FALLBACK_CLASHS = [
     "t'es noyé là tu coules tu coules",
 ]
 
-def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
-    """Génère UN micro-clash en mode débit pur. Max 2 phrases."""
-    prompt = f"1v1 contre {target_name}. {extra_context} 1 ou 2 phrases max. Clashe-le direct. Avec emojis."
+async def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
+    """Génère UN micro-clash en mode débit pur, nourri par l'actu."""
+    actu = await fetch_actu()
+    actu_str = ""
+    if actu:
+        picks = random.sample(actu, min(3, len(actu)))
+        actu_str = "Actu du moment (utilise-en une si c'est percutant) : " + " | ".join(picks)
+
+    prompt = f"1v1 contre {target_name}. {extra_context} {actu_str} 1 phrase sèche. Clashe-le direct."
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -180,7 +214,6 @@ def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
             temperature=0.97,
         )
         result = response.choices[0].message.content
-        # Si vide ou trop court → fallback
         if not result or not result.strip() or len(result.strip()) < 5:
             return random.choice(FALLBACK_CLASHS)
         return result.strip()
@@ -218,7 +251,7 @@ async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int
     for i in range(rounds):
         ctx = contexts[i] if i < len(contexts) else ""
         try:
-            clash = ask_ai_debit(target_name, ctx)
+            clash = await ask_ai_debit(target_name, ctx)
             await send_to_channel(channel, clash)
             # Parfois balance une interjection seule entre les blocs
             if random.random() > 0.4:
@@ -243,7 +276,7 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
     for i in range(rounds):
         ctx = contexts[i] if i < len(contexts) else ""
         try:
-            clash = ask_ai_debit(target, ctx)
+            clash = await ask_ai_debit(target, ctx)
             clash = clash.strip() if clash else ""
             if not clash:
                 clash = random.choice(FALLBACK_CLASHS)
