@@ -194,6 +194,15 @@ FALLBACK_CLASHS = [
     "t'es noyé là tu coules tu coules",
 ]
 
+# ── Historique anti-répétition ───────────────────────────────────────────────
+_recent_clashs: list[str] = []
+MAX_RECENT = 10
+
+def add_recent(clash: str):
+    _recent_clashs.append(clash)
+    if len(_recent_clashs) > MAX_RECENT:
+        _recent_clashs.pop(0)
+
 async def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
     """Génère UN micro-clash en mode débit pur, nourri par l'actu."""
     actu = await fetch_actu()
@@ -202,7 +211,11 @@ async def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
         picks = random.sample(actu, min(3, len(actu)))
         actu_str = "Actu du moment (utilise-en une si c'est percutant) : " + " | ".join(picks)
 
-    prompt = f"1v1 contre {target_name}. {extra_context} {actu_str} 1 phrase sèche. Clashe-le direct."
+    anti_repeat = ""
+    if _recent_clashs:
+        anti_repeat = "INTERDIT de répéter ou ressembler à : " + " | ".join(_recent_clashs[-5:])
+
+    prompt = f"1v1 contre {target_name}. {extra_context} {actu_str} {anti_repeat} 1 phrase NOUVELLE et différente. Clashe-le direct."
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -216,6 +229,7 @@ async def ask_ai_debit(target_name: str, extra_context: str = "") -> str:
         result = response.choices[0].message.content
         if not result or not result.strip() or len(result.strip()) < 5:
             return random.choice(FALLBACK_CLASHS)
+        add_recent(result.strip())
         return result.strip()
     except Exception:
         return random.choice(FALLBACK_CLASHS)
@@ -254,10 +268,10 @@ async def debit_mode(channel: discord.TextChannel, target_name: str, rounds: int
             clash = await ask_ai_debit(target_name, ctx)
             await send_to_channel(channel, clash)
             # Parfois balance une interjection seule entre les blocs
-            if random.random() > 0.4:
-                await asyncio.sleep(random.uniform(0.2, 0.5))
+            await asyncio.sleep(random.uniform(0.6, 1.0))
+            if random.random() > 0.6:
                 await channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(0.3, 0.7))
+                await asyncio.sleep(random.uniform(0.5, 0.8))
         except Exception as e:
             await channel.send(f"❌ `{e}`")
             break
@@ -284,10 +298,10 @@ async def debit_reply(message: discord.Message, rounds: int = 4):
                 await message.reply(clash)
             else:
                 await message.channel.send(clash)
-            if random.random() > 0.4:
-                await asyncio.sleep(random.uniform(0.15, 0.4))
+            await asyncio.sleep(random.uniform(0.5, 0.9))
+            if random.random() > 0.6:
                 await message.channel.send(random.choice(DEBIT_INTERJECTIONS))
-            await asyncio.sleep(random.uniform(0.2, 0.6))
+                await asyncio.sleep(random.uniform(0.4, 0.7))
         except Exception as e:
             await message.channel.send(f"❌ `{e}`")
             break
