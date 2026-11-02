@@ -55,48 +55,53 @@ def next_angle() -> str:
     _angle_idx += 1
     return a
 
-def clash_sync(target: str) -> str:
+async def clash(target: str) -> str:
     angle = next_angle()
     anti = (" | ne pas répéter : " + " / ".join(_recent[-5:])) if _recent else ""
     user_msg = f"Cible : {target}. Angle : {angle}.{anti}"
+    fb = [
+        f"{target} t'as le cerveau d'une calculette cassée bolosse",
+        f"{target} t'as l'odeur d'un vestiaire de perdants",
+        f"{target} dans 5 ans tu ramasses les cabas au marché",
+        f"{target} t'as la dèche tatouée sur le front baltringue",
+        f"la famille de {target} s'excuse d'exister",
+        f"{target} t'as le style d'un sac poubelle un lundi matin",
+        f"{target} même ton quartier t'a viré tellement t'es naze",
+        f"{target} tu réponds même pas t'as rien dans le crâne",
+        f"{target} t'es aussi utile qu'un essuie-glace sur un sous-marin",
+        f"{target} zéro sur dix même ta mère valide pas",
+    ]
     try:
-        r = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
+        import httpx, json as _json
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
                 {"role": "system", "content": SYSTEM},
                 {"role": "user", "content": user_msg},
             ],
-            max_tokens=40,
-            temperature=1.05,
-        )
-        out = (r.choices[0].message.content or "").strip().strip('"').strip("'")
-        # Rejette si trop court, trop long ou semble être du refus
+            "max_tokens": 40,
+            "temperature": 1.05,
+        }
+        async with httpx.AsyncClient(timeout=8) as hx:
+            resp = await hx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
+                         "Content-Type": "application/json"},
+                content=_json.dumps(payload),
+            )
+        out = resp.json()["choices"][0]["message"]["content"].strip().strip('"').strip("'")
         bad = ["je ne peux", "cannot", "sorry", "i can't", "désolé", "inappropri"]
         if len(out) < 8 or len(out) > 150 or any(b in out.lower() for b in bad):
-            raise ValueError("mauvaise réponse")
+            raise ValueError
         _recent.append(out[:70])
         if len(_recent) > 15: _recent.pop(0)
         return out
     except Exception:
-        # Fallback maison varié par angle
-        fb = [
-            f"{target} t'as le cerveau d'une calculette cassée bolosse",
-            f"{target} t'as l'odeur d'un vestiaire de perdants",
-            f"{target} dans 5 ans tu ramasses les cabas au marché",
-            f"{target} t'as la dèche tatouée sur le front baltringue",
-            f"la famille de {target} s'excuse d'exister",
-            f"{target} t'as le style d'un sac poubelle un lundi matin",
-            f"{target} même ton quartier t'a viré tellement t'es naze",
-            f"{target} tu réponds même pas parce que t'as rien dans le crâne",
-            f"{target} t'es aussi utile qu'un essuie-glace sur un sous-marin",
-            f"{target} zéro sur dix même ta mère valide pas",
-        ]
         return random.choice(fb)
 
 async def debite(channel, target, reply_msg=None, rounds=4):
-    loop = asyncio.get_event_loop()
     for i in range(rounds):
-        txt = await loop.run_in_executor(None, clash_sync, target)
+        txt = await clash(target)
         if i == 0 and reply_msg:
             await reply_msg.reply(txt)
         else:
