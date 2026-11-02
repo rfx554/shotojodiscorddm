@@ -6,7 +6,7 @@ import os
 
 # ── Config ────────────────────────────────────────────────────────────────────
 OWNER_ID = 1419320803199029402  # Seul utilisateur auquel le bot répond
-MODEL    = "gemma2-9b-it"       # Modèle Groq gratuit et stable
+MODEL    = "llama-3.1-8b-instant"  # Modèle Groq gratuit et stable
 
 intents = discord.Intents.default()
 intents.message_content = True
