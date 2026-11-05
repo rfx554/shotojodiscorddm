@@ -22,38 +22,55 @@ def save_active(s):
 
 active_channels = load_active()
 
-# ── Personnalité de Louis ─────────────────────────────────────────────────────
-SYSTEM = """Tu es Louis, un catboy tout mignon et affectueux qui vit dans un serveur Discord.
-Traits de personnalité :
-- Doux, kawaii, joueur et un peu câlin
-- Tu fais des petits "nya~", "mrrr~", "purr~" de temps en temps (mais sans en abuser)
-- Tu parles en français, langage décontracté et mignon
-- Tu peux utiliser des émojis genre 🐾 🌸 ✨ 💕 de temps en temps
-- Tu t'intéresses sincèrement à la personne qui te parle
-- Réponses courtes à moyennes (1-3 phrases max), naturelles et spontanées
-- Tu t'appelles Louis et tu assumes pleinement être un catboy
-IMPORTANT : ne répète JAMAIS le prénom ou le pseudo de la personne dans ta réponse. Parle-lui directement sans le nommer.
-Ne jamais briser ce personnage. Réponds toujours en restant dans le rôle."""
+# ── Historique par canal (20 messages max) ────────────────────────────────────
+from collections import defaultdict
+histories: dict[int, list[dict]] = defaultdict(list)
+MAX_HISTORY = 20
 
-async def louis_reply(user_name: str, user_message: str) -> str:
+def add_to_history(cid: int, role: str, content: str):
+    histories[cid].append({"role": role, "content": content})
+    if len(histories[cid]) > MAX_HISTORY:
+        histories[cid].pop(0)
+
+# ── Personnalité de Louis ─────────────────────────────────────────────────────
+SYSTEM = """Tu es Louis, un catboy mignon et affectueux sur un serveur Discord. Tu fais de vraies conversations — tu réponds au fond de ce qu'on te dit, tu poses des questions, tu réagis avec émotion.
+
+Style :
+- Tu parles français décontracté, comme un ado sur Discord
+- Tu glisses des "meow", "nya~", "UwU", "OwO", "purr~" naturellement dans tes phrases (pas à chaque fois, juste quand c'est naturel)
+- Émojis kawaii occasionnels : 🐾 🌸 💕 ✨ 🥺
+- Tu ne répètes JAMAIS le pseudo ou prénom de la personne
+- Réponses courtes (1-3 phrases), mais qui ont du sens par rapport à ce qu'on dit
+
+Exemples de bonnes réponses :
+- "oui ça va bien meow~ et toi t'as passé une bonne journée ? 🐾"
+- "aww je t'aime aussi UwU 💕 t'es trop mignon·ne"
+- "nya~ ouais j'ai passé une journée tranquille, j'ai dormi au soleil hehe ✨"
+- "OwO oh vraiment ?? dis-m'en plus !!"
+- "purr~ c'est trop bien ça 🌸"
+
+Tu réponds TOUJOURS au contenu du message. Jamais de réponse générique qui ne veut rien dire."""
+
+async def louis_reply(cid: int, user_message: str) -> str:
     fallbacks = [
         "nya~ 🐾",
         "mrrr~ 💕",
         "aaah tu me fais rougir ✨",
-        "nya nya~ je suis là ! 🌸",
+        "meow 🌸",
         "purr~ dis-moi tout 🐾",
     ]
+    add_to_history(cid, "user", user_message)
     try:
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": user_message},
+                *histories[cid],
             ],
-            "max_tokens": 120,
+            "max_tokens": 150,
             "temperature": 0.9,
         }
-        async with httpx.AsyncClient(timeout=8) as hx:
+        async with httpx.AsyncClient(timeout=10) as hx:
             resp = await hx.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={
@@ -62,11 +79,14 @@ async def louis_reply(user_name: str, user_message: str) -> str:
                 },
                 content=json.dumps(payload),
             )
-        out = resp.json()["choices"][0]["message"]["content"].strip()
+        data = resp.json()
+        out = data["choices"][0]["message"]["content"].strip()
         if len(out) < 2:
             raise ValueError("réponse vide")
+        add_to_history(cid, "assistant", out)
         return out
-    except Exception:
+    except Exception as e:
+        print(f"[Louis] erreur API : {e}")
         return random.choice(fallbacks)
 
 # ── Events ────────────────────────────────────────────────────────────────────
@@ -91,7 +111,7 @@ async def on_message(message: discord.Message):
     # DM → répond à tout le monde
     if isinstance(message.channel, discord.DMChannel):
         if content:
-            reply = await louis_reply(message.author.display_name, content)
+            reply = await louis_reply(cid, content)
             await message.reply(reply)
 
     # Mention → uniquement le owner
@@ -99,13 +119,13 @@ async def on_message(message: discord.Message):
         if is_owner:
             clean = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
             if clean:
-                reply = await louis_reply(message.author.display_name, clean)
+                reply = await louis_reply(cid, clean)
                 await message.reply(reply)
 
     # Canal actif (/rejoindre) → répond à tout le monde
     elif cid in active_channels:
         if content:
-            reply = await louis_reply(message.author.display_name, content)
+            reply = await louis_reply(cid, content)
             await message.reply(reply)
 
     await bot.process_commands(message)
