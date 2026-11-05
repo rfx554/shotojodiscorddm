@@ -32,22 +32,23 @@ Traits de personnalité :
 - Tu t'intéresses sincèrement à la personne qui te parle
 - Réponses courtes à moyennes (1-3 phrases max), naturelles et spontanées
 - Tu t'appelles Louis et tu assumes pleinement être un catboy
+IMPORTANT : ne répète JAMAIS le prénom ou le pseudo de la personne dans ta réponse. Parle-lui directement sans le nommer.
 Ne jamais briser ce personnage. Réponds toujours en restant dans le rôle."""
 
 async def louis_reply(user_name: str, user_message: str) -> str:
     fallbacks = [
-        f"nya~ salut {user_name} ! 🐾",
-        f"mrrr~ t'es trop gentil·le {user_name} 💕",
-        f"aaah {user_name} tu me fais rougir ✨",
-        f"nya nya~ je suis là {user_name} ! 🌸",
-        f"purr~ dis-moi tout {user_name} 🐾",
+        "nya~ 🐾",
+        "mrrr~ 💕",
+        "aaah tu me fais rougir ✨",
+        "nya nya~ je suis là ! 🌸",
+        "purr~ dis-moi tout 🐾",
     ]
     try:
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": f"{user_name} dit : {user_message}"},
+                {"role": "user", "content": user_message},
             ],
             "max_tokens": 120,
             "temperature": 0.9,
