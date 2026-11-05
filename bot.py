@@ -4,6 +4,13 @@ from collections import defaultdict
 import os, json, asyncio, httpx, random
 from pathlib import Path
 
+# Charge automatiquement le .env si présent
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 OWNER_ID = 1419320803199029402
 ACTIVE_FILE = "active_channels.json"
 
