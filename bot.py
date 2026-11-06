@@ -26,7 +26,7 @@ except ImportError:
 # ── Config ────────────────────────────────────────────────────────────────────
 GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-LLM_MODEL     = "meta-llama/llama-4-scout-17b-16e-instruct"
+LLM_MODEL     = "openai/gpt-oss-20b"
 WHISPER_MODEL = "whisper-large-v3"
 MAX_HISTORY   = 40
 TTS_LANG      = "fr"
@@ -76,7 +76,9 @@ async def ask_llm(cid: int, user_message: str) -> str:
                 },
                 content=json.dumps(payload),
             )
+        print(f"[LLM] status={resp.status_code}")
         data = resp.json()
+        print(f"[LLM] réponse brute : {json.dumps(data)[:500]}")
         if "choices" not in data:
             raise ValueError(f"Réponse inattendue : {data}")
         out = data["choices"][0]["message"]["content"].strip()
