@@ -26,7 +26,7 @@ except ImportError:
 # ── Config ────────────────────────────────────────────────────────────────────
 GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-LLM_MODEL     = "llama-3.3-70b-versatile"
+LLM_MODEL     = "meta-llama/llama-4-scout-17b-16e-instruct"
 WHISPER_MODEL = "whisper-large-v3"
 MAX_HISTORY   = 40
 TTS_LANG      = "fr"
